@@ -1,11 +1,203 @@
-<!DOCTYPE html>  
- <html lang="en">  
-   <head>  
- <meta charset="UTF-8">  
- <meta name="viewport" content="width=device-width, initial-scale=1.0">  
- <title>Document</title>  
- </head>  
-   <body>  
-  <h1>知识梳理</h1>
- </body>  
+<!DOCTYPE html>
+<html>
+<head>
+    <title>文档中心</title>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="assets/css/style.css">
+    <!-- 添加代码高亮 -->
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.0/styles/default.min.css">
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.0/highlight.min.js'></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.0/languages/python.min.js"></script>
+    <script src="https://cdn.uv.cc/markedjs/0.3.5/marked.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.worker.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar" id="category-tree"></div>
+        <div class="content" id="article-content"></div>
+    </div>
+    <script>
+        // 加载配置并渲染目录
+        fetch('config.json')
+            .then(res => res.json())
+            .then(config => {
+                renderCategories(config.categories, document.getElementById('category-tree'));
+            });
+
+        function renderCategories(categories, container) {
+            // 递归渲染目录树
+            categories.forEach(cat => {
+                const div = document.createElement('div');
+                div.className = 'category';
+                div.innerHTML = `
+                    <div class="category-header">${cat.name}</div>
+                    <div class="subcategories" style="display:none"></div>
+                `;
+                
+                if(cat.subcategories.length > 0 || cat.articles.length > 0){
+                    div.querySelector('.category-header').addEventListener('click', function() {
+                        this.nextElementSibling.style.display = 
+                            this.nextElementSibling.style.display === 'none' ? 'block' : 'none';
+                    });
+                }
+
+                // 渲染子分类和文章
+                const subContainer = div.querySelector('.subcategories');
+                renderCategories(cat.subcategories, subContainer);
+                
+                cat.articles.forEach(article => {
+                    const articleDiv = document.createElement('div');
+                    articleDiv.className = 'article';
+                    articleDiv.textContent = article.title;
+                    articleDiv.addEventListener('click', () => loadArticle(article));
+                    subContainer.appendChild(articleDiv);
+                });
+
+                container.appendChild(div);
+            });
+        }
+        // 高亮
+         document.addEventListener('DOMContentLoaded', function() {
+      hljs.configure({ 
+        languages: ['python', 'javascript'],
+        ignoreUnescapedHTML: true 
+      });
+      hljs.highlightAll();
+    });
+      // pdf
+      // 2. 初始化Worker配置
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof pdfjsLib !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 
+          'assets/js/pdf.worker.min.js';
+      }
+    });
+      // 加载文章
+
+        function loadArticle(article) {
+    const container = document.getElementById('article-content');
+    container.innerHTML = '<div class="loading">正在加载内容...</div>';
+
+    fetch(`articles/${article.path}`)
+        .then(res => {
+            if (!res.ok) throw new Error('文件加载失败');
+            if (article.type === 'pdf') return res.blob();
+            return res.text();
+        })
+        .then(data => {
+            container.innerHTML = ''; // 清空容器
+
+            if (article.type === 'md') {
+                const mdContent = document.createElement('div');
+                mdContent.className = 'markdown-body';
+                mdContent.innerHTML = marked.parse(data);
+                container.appendChild(mdContent);
+                
+                // 启用代码高亮
+                hljs.highlightAll();
+            } 
+            else if (article.type === 'pdf') {
+    const pdfContainer = document.createElement('div');
+    pdfContainer.className = 'pdf-container';
+    container.appendChild(pdfContainer);
+
+    // 添加导航控件
+    const controls = document.createElement('div');
+    controls.style.margin = '10px 0';
+    
+    const prevBtn = document.createElement('button');
+    prevBtn.textContent = '上一页';
+    const nextBtn = document.createElement('button');
+    nextBtn.textContent = '下一页';
+    const pageInfo = document.createElement('span');
+    pageInfo.style.margin = '0 10px';
+
+    // 添加跳转输入框和按钮
+    const pageInput = document.createElement('input');
+    pageInput.type = 'number';
+    pageInput.placeholder = '输入页码';
+    const jumpBtn = document.createElement('button');
+    jumpBtn.textContent = '跳转';
+
+    controls.append(prevBtn, pageInfo, nextBtn, pageInput, jumpBtn);
+    pdfContainer.appendChild(controls);
+
+    // 添加画布容器
+    const canvasContainer = document.createElement('div');
+    const pdfViewer = document.createElement('canvas');
+    canvasContainer.appendChild(pdfViewer);
+    pdfContainer.appendChild(canvasContainer);
+
+    // 存储PDF对象和当前页数
+    let pdfDoc = null;
+    let currentPage = 1;
+
+    // 渲染页面函数
+    const renderPage = (pageNum) => {
+        pdfDoc.getPage(pageNum).then(page => {
+            const viewport = page.getViewport({ scale: 1.5 });
+            pdfViewer.height = viewport.height;
+            pdfViewer.width = viewport.width;
+
+            const renderContext = {
+                canvasContext: pdfViewer.getContext('2d'),
+                viewport: viewport
+            };
+            page.render(renderContext);
+
+            // 更新页码显示
+            pageInfo.textContent = `第 ${pageNum} 页 / 共 ${pdfDoc.numPages} 页`;
+            
+            // 按钮状态控制
+            prevBtn.disabled = pageNum <= 1;
+            nextBtn.disabled = pageNum >= pdfDoc.numPages;
+        });
+    };
+
+    // 初始化PDF
+    const loadingTask = pdfjsLib.getDocument(URL.createObjectURL(data));
+    loadingTask.promise.then(pdf => {
+        pdfDoc = pdf;
+        renderPage(currentPage);
+
+        // 绑定翻页事件
+        prevBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage(currentPage);
+            }
+        });
+
+        nextBtn.addEventListener('click', () => {
+            if (currentPage < pdfDoc.numPages) {
+                currentPage++;
+                renderPage(currentPage);
+            }
+        });
+
+        // 绑定跳转事件
+        jumpBtn.addEventListener('click', () => {
+            const pageNum = parseInt(pageInput.value);
+            if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= pdfDoc.numPages) {
+                currentPage = pageNum;
+                renderPage(currentPage);
+            }
+        });
+    });
+}
+            else if (article.type === 'html') {
+                const htmlFrame = document.createElement('iframe');
+                htmlFrame.style.width = '100%';
+                htmlFrame.style.height = '80vh';
+                htmlFrame.srcdoc = data;
+                container.appendChild(htmlFrame);
+            }
+        })
+        .catch(err => {
+            container.innerHTML = `<div class="error">${err.message}</div>`;
+        });
+}
+    </script>
+</body>
 </html>
