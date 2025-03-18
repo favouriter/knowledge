@@ -1,0 +1,23 @@
+{
+  "categories": [
+    {
+      "name": "开发",
+      "path": "开发",
+      "subcategories": [
+        {
+          "name": "linux",
+          "path": "开发\\linux",
+          "subcategories": [],
+          "articles": [
+            {
+              "type": "md",
+              "title": "修改linux最大连接数",
+              "path": "开发\\linux\\linux最大连接数.md"
+            }
+          ]
+        }
+      ],
+      "articles": []
+    }
+  ]
+}

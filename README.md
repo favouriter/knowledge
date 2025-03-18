@@ -9,9 +9,13 @@
 python3 generate_config.py
 ```
 
-## weh部署
+## web部署
 ```
 cd docs
 python3 -m http.server 80
 # 访问http://127.0.0.1
 ```
+
+## github.io访问
+
+https://favouriter.github.io/knowledge/index.html
